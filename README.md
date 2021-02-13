@@ -2,9 +2,7 @@
 A rpi based sea (wave) monitoring tool
 
 ## TODO
-- Connect imu sensor to rpi
-- Write basic code to interface with the imu and get measurements
-- Write code to init measurements to 0 and measure z translation
+- reset the integration after each period to minimise error accumulation
 - Add a webinterface to show the z translation and reset the measurements (socketio)
 - Constantly get the min/max of the translation measurements and show them in the webinterface
 - Calculate significant wave height using the formula (4*std)
