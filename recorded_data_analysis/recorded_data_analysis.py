@@ -2,22 +2,29 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import deque
+from numpy.linalg.linalg import det
 import scipy.integrate as it
 from scipy import signal
 
-fifo_buffer_len = 10
+fifo_buffer_len = 15
 dt = 0.1
 
-def double_integrate_data(z_accels, dx_times):
+def double_integrate_data(z_accels):
+	'''
+		Detrending seems to be important to limit the noise and get good results
+	'''
+	#z_accels = signal.detrend(z_accels)
 	velocity = it.cumtrapz(z_accels, dx = dt)
 
 	detrended_velocity = signal.detrend(velocity)
 	location = it.cumtrapz(detrended_velocity, dx = dt)
-	return [velocity,location]
+	location = signal.detrend(location)
+
+	return [velocity, location]
 
 def filter_accel_data(z_accels):
 	fs = 10
-	fc = 10  # Cut-off frequency of the filter (was 2)
+	fc = 0.5  # Cut-off frequency of the filter (was 2)
 	w = float(fc / (fs / 2)) # Normalize the frequency
 	b, a = signal.butter(5, 0.05, 'low')
 	filtered_z_axis = signal.filtfilt(b, a, z_accels)
@@ -40,37 +47,28 @@ def get_filtered_data(recorded_data):
             filtered_data.append(moving_average(recorded_data['y'][i:fifo_buffer_len+i]))
     return filtered_data
 
-def get_displacement(filtered_data):
-    velocity = []
-    displacement = []
-    for i in range(len(filtered_data)-1):
-        velocity.append((filtered_data[i] + filtered_data[i+1]) * dt)
-    for i in range(len(velocity) -1):
-        displacement.append((velocity[i] + velocity[i+1]) * dt)
-    return velocity, displacement
+def get_zero_crossings(filtered_z_axis):
+	a = np.array(filtered_z_axis)
+	zero_crossings = np.where(np.diff(np.signbit(a)))[0]
+	return zero_crossings	
 
 if __name__ == '__main__':
     with open('recorded_data_16cm_amplitude.json') as json_file:
         recorded_data = json.load(json_file)
-        #filtered_data = get_filtered_data(recorded_data)
-        filtered_data = filter_accel_data(np.array(recorded_data['y']))
-        displacement, velocity = get_displacement(filtered_data)
-        displacement2, velocity2 = double_integrate_data(np.array(filtered_data), dt)
-        plt.subplot(4, 1, 1)
+        #recorded_data['y'] = recorded_data['y'][:100]
+        #recorded_data['x'] = recorded_data['x'][:100]
+        filtered_data = get_filtered_data(recorded_data)
 
+        #filtered_data = filter_accel_data(np.array(recorded_data['y']))
+        zero_crossings = get_zero_crossings(filtered_data)
+        velocity2, displacement2 = double_integrate_data(np.array(filtered_data))
+        plt.figure(0)
         plt.plot(recorded_data['x'], recorded_data['y'])
         plt.plot(filtered_data)
+        plt.scatter(zero_crossings, np.zeros(len(zero_crossings)), c='r')
 
-        plt.subplot(4, 1, 2)
-        plt.title('Displacement')
-
-        plt.plot(np.linspace(0, len(displacement), len(displacement)), displacement)
-        plt.subplot(4, 1, 3)
-        plt.title('Velocity')
-        plt.plot(np.linspace(0, len(velocity), len(velocity)), velocity)
-
-        plt.subplot(4, 1, 4)
+        plt.figure(1)
         plt.title('Displacement(cumtrapz)')
         plt.plot(np.linspace(0, len(displacement2), len(displacement2)), displacement2)
-
+        plt.scatter(zero_crossings, displacement2[zero_crossings], c='r')
         plt.show()
